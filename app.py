@@ -1,13 +1,13 @@
 import streamlit as st
-from styles.css import load_css
 from components.sidebar import show_sidebar
 
-load_css()
-
+# استدعاء القائمة الجانبية
 page = show_sidebar()
 
+# عنوان التطبيق
 st.title("منصة التداول 🚀")
 
+# التنقل بين الصفحات
 if page == "Dashboard":
     st.write("Main page (الصفحة الرئيسية)")
 
