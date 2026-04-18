@@ -1,7 +1,11 @@
 import streamlit as st
+from styles.css import load_css
 from components.sidebar import show_sidebar
 
-# استدعاء القائمة الجانبية
+# تحميل الستايل
+load_css()
+
+# القائمة الجانبية
 page = show_sidebar()
 
 # عنوان التطبيق
