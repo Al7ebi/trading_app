@@ -2,40 +2,55 @@ import streamlit as st
 from styles.css import load_css
 from components.sidebar import show_sidebar
 
-# اختيار الوضع
-mode = st.sidebar.radio("🌙 / ☀️", ["Dark", "Light"])
+# إعداد الصفحة
+st.set_page_config(page_title="Trading Platform", layout="wide")
+
+# تحميل CSS
+load_css()
+
+# 🌙 وضع ليلي / نهاري
+if "theme" not in st.session_state:
+    st.session_state.theme = "dark"
+
+col1, col2 = st.columns([10,1])
+
+with col2:
+    if st.session_state.theme == "dark":
+        if st.button("☀️"):
+            st.session_state.theme = "light"
+    else:
+        if st.button("🌙"):
+            st.session_state.theme = "dark"
 
 # تطبيق الثيم
-def apply_theme(mode):
-    if mode == "Dark":
-        st.markdown("""
+if st.session_state.theme == "dark":
+    st.markdown("""
         <style>
-        body { background-color: #0E1117; color: white; }
-        h1 { color: #00FFAA; text-align: center; }
+        body { background-color: #0e1117; color: white; }
         </style>
-        """, unsafe_allow_html=True)
-    else:
-        st.markdown("""
+    """, unsafe_allow_html=True)
+else:
+    st.markdown("""
         <style>
         body { background-color: white; color: black; }
-        h1 { color: #333; text-align: center; }
         </style>
-        """, unsafe_allow_html=True)
-
-apply_theme(mode)
+    """, unsafe_allow_html=True)
 
 # القائمة الجانبية
 page = show_sidebar()
 
-# العنوان
-st.title("منصة التداول 🚀")
+# العنوان الرئيسي
+st.markdown("<h1 style='text-align:center;'>🚀 منصة التداول</h1>", unsafe_allow_html=True)
 
 # الصفحات
 if page == "Dashboard":
-    st.write("Main page (الصفحة الرئيسية)")
+    st.markdown("### 📊 الصفحة الرئيسية")
+    st.write("Welcome to your trading dashboard")
 
 elif page == "تحليل سهم":
-    st.write("Stock analysis (تحليل سهم)")
+    st.markdown("### 📈 تحليل سهم")
+    st.write("Stock analysis tools will be here")
 
 elif page == "Radar":
-    st.write("Radar page (صفحة الرادار)")
+    st.markdown("### 📡 Radar")
+    st.write("Market scanner (coming soon)")
