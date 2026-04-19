@@ -1,110 +1,72 @@
-"""
-app.py — منصة التداول
-هيكل منظم + كروت احترافية + واجهة متقدمة
-"""
 import streamlit as st
 import pandas as pd
 from datetime import datetime, timezone
 from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
 import engine as E
 
-# 1. إعدادات الصفحة
+# إعداد الصفحة
 st.set_page_config(
-    page_title="منصة التداول",
+    page_title="منصة التداول الاحترافية",
     page_icon="💹",
     layout="wide",
-    initial_sidebar_state="expanded",
 )
 
-# 2. إدارة حالة الجلسة (Session State)
-for k, v in {
-    "theme":         "dark",
-    "single_result": None,
-    "single_ts":     None,
-    "single_ticker": "TSLA",
-    "single_smt":    "QQQ",
-    "radar_df":      None,
-    "radar_ts":      None,
-    "drill":         None,
-}.items():
-    if k not in st.session_state:
-        st.session_state[k] = v
+# حالة الجلسة
+if "radar_df" not in st.session_state:
+    st.session_state.radar_df = None
 
-DARK = st.session_state.theme == "dark"
-
-# 3. تخصيص الألوان والسمات (CSS Customization - Quantom Style)
+# CSS
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Tajawal:wght@400;700&display=swap');
-html, body, [class*="css"]  {
-    font-family: 'Tajawal', sans-serif;
+html, body, [class*="css"] {
+    background-color: #060709;
+    color: white;
 }
-.metric-card {
-    background-color: #0B0D14;
+.card {
+    background: #0B0D14;
     border: 1px solid #1E2535;
-    border-radius: 10px;
-    padding: 20px;
-    text-align: center;
-    box-shadow: 0 4px 6px rgba(0,0,0,0.3);
-    margin-bottom: 25px;
+    border-radius: 12px;
+    padding: 15px;
 }
-.metric-title { color: #8B98A9; font-size: 16px; font-weight: bold; margin-bottom: 10px;}
-.metric-value { color: #E8EDF5; font-size: 28px; font-weight: bold; margin-bottom: 5px;}
-.metric-profit { color: #00e676; font-size: 15px; font-weight: bold;}
-.metric-loss { color: #ff1744; font-size: 15px; font-weight: bold;}
-.metric-neutral { color: #3A4558; font-size: 15px; font-weight: bold;}
 </style>
 """, unsafe_allow_html=True)
 
+# كروت
+c1, c2, c3 = st.columns(3)
 
-# 4. كروت المحفظة الاحترافية (Balance / Profit / Loss)
-col_bal, col_prof, col_loss = st.columns(3)
+c1.markdown('<div class="card">BALANCE<br><b>$0</b></div>', unsafe_allow_html=True)
+c2.markdown('<div class="card">PROFIT<br><b style="color:#00ff88;">$0</b></div>', unsafe_allow_html=True)
+c3.markdown('<div class="card">LOSS<br><b style="color:#ff3366;">$0</b></div>', unsafe_allow_html=True)
 
-with col_bal:
-    st.markdown('''
-    <div class="metric-card">
-        <div class="metric-title">الرصيد الإجمالي (Balance)</div>
-        <div class="metric-value">$0.00</div>
-        <div class="metric-neutral">متاح للتداول</div>
-    </div>
-    ''', unsafe_allow_html=True)
+# Sidebar
+with st.sidebar:
+    if st.button("بدء المسح الذكي"):
+        
+        pairs = ["EURUSD", "GBPUSD", "BTCUSD"]
 
-with col_prof:
-    st.markdown('''
-    <div class="metric-card">
-        <div class="metric-title">إجمالي الربح (Total Profit)</div>
-        <div class="metric-value">$0.00</div>
-        <div class="metric-profit">▲ +0.0%</div>
-    </div>
-    ''', unsafe_allow_html=True)
+        results = []
 
-with col_loss:
-    st.markdown('''
-    <div class="metric-card">
-        <div class="metric-title">إجمالي الخسارة (Total Loss)</div>
-        <div class="metric-value">-$0.00</div>
-        <div class="metric-loss">▼ -0.0%</div>
-    </div>
-    ''', unsafe_allow_html=True)
+        def scan_one(pair):
+            return E.scan(pair)  # لازم تكون موجودة في engine
 
-st.markdown("---")
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            futures = {executor.submit(scan_one, p): p for p in pairs}
 
-# 5. القائمة الجانبية (Sidebar)
-# [ضع كود القائمة الجانبية st.sidebar الخاص بك هنا كما هو بدون تعديل]
+            for fut in as_completed(futures):
+                pair = futures[fut]
+                try:
+                    res = fut.result(timeout=10)
+                    results.append(res)
+                except TimeoutError:
+                    results.append({"pair": pair, "signal": "TIMEOUT"})
 
+        df = pd.DataFrame(results)
+        st.session_state.radar_df = df
 
-# 6. محرك المسح (Engine & ThreadPoolExecutor)
-# [ضع دالة def one(pair): وبقية أوامر المسح هنا]
-"""
-def one(pair): return _row(pair[0],pair[1])
-done=0
-with ThreadPoolExecutor(max_workers=4) as pool:
-    # ... بقية كود المسح الخاص بك ...
-"""
+# عرض النتائج
+st.subheader("📊 Radar")
 
-# 7. عرض النتائج (Dataframe)
-# [ضع كود df=(pd.DataFrame(results)... وعرض الجداول هنا]
-"""
-st.session_state.radar_df=df; st.session_state.radar_ts=datetime.now(timezone.utc)
-# ... بقية كود عرض النتيجة النهائية ...
-"""
+if st.session_state.radar_df is not None:
+    st.dataframe(st.session_state.radar_df, use_container_width=True)
+else:
+    st.info("ابدأ المسح من اليسار")
