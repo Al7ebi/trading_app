@@ -1,72 +1,80 @@
-import streamlit as st
-import pandas as pd
-from datetime import datetime, timezone
-from concurrent.futures import ThreadPoolExecutor, as_completed, TimeoutError
-import engine as E
+def _run_scan(watchlist, cfg):
+    E.SWEEP_WICK_MIN = float(cfg["wick_min"])
+    total, results = len(watchlist), []
+    pb = st.progress(0, text="تهيئة الرادار…")
 
-# إعداد الصفحة
-st.set_page_config(
-    page_title="منصة التداول الاحترافية",
-    page_icon="💹",
-    layout="wide",
-)
+    def scan_one(pair):
+        ticker, smt = pair
+        try:
+            res = E.run_engine(
+                ticker, smt,
+                cfg["htf_interval"], cfg["exec_interval"],
+                cfg["entry_interval"], cfg["htf_period"],
+                cfg["exec_period"]
+            )
+            return E.extract_row(res[0], ticker, smt)
+        except Exception:
+            return {
+                "Ticker": ticker,
+                "SMT": smt,
+                "Grade": "ERR",
+                "Score": "—",
+                "Bias": "ERROR",
+                "Entry": "—",
+                "SL": "—",
+                "TP1": "—",
+                "TP2": "—",
+                "Potential R:R": "—",
+                "DOL": "—",
+                "SMT Signal": "—",
+                "Fractal": "—",
+                "Killzone": "—",
+                "PD Array": "—",
+                "_score_num": -1,
+                "_grade_rank": 100
+            }
 
-# حالة الجلسة
-if "radar_df" not in st.session_state:
-    st.session_state.radar_df = None
+    done = 0
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        futures = {pool.submit(scan_one, pair): pair for pair in watchlist}
+        for fut in as_completed(futures):
+            tkr, smt = futures[fut]
+            try:
+                row = fut.result(timeout=25)
+            except TimeoutError:
+                row = {
+                    "Ticker": tkr,
+                    "SMT": smt,
+                    "Grade": "TIMEOUT",
+                    "Score": "—",
+                    "Bias": "—",
+                    "Entry": "—",
+                    "SL": "—",
+                    "TP1": "—",
+                    "TP2": "—",
+                    "Potential R:R": "—",
+                    "DOL": "—",
+                    "SMT Signal": "—",
+                    "Fractal": "—",
+                    "Killzone": "—",
+                    "PD Array": "—",
+                    "_score_num": -2,
+                    "_grade_rank": 101
+                }
 
-# CSS
-st.markdown("""
-<style>
-html, body, [class*="css"] {
-    background-color: #060709;
-    color: white;
-}
-.card {
-    background: #0B0D14;
-    border: 1px solid #1E2535;
-    border-radius: 12px;
-    padding: 15px;
-}
-</style>
-""", unsafe_allow_html=True)
+            results.append(row)
+            done += 1
+            pb.progress(done / total, text=f"مسح {done}/{total} · {tkr}")
 
-# كروت
-c1, c2, c3 = st.columns(3)
+    pb.empty()
 
-c1.markdown('<div class="card">BALANCE<br><b>$0</b></div>', unsafe_allow_html=True)
-c2.markdown('<div class="card">PROFIT<br><b style="color:#00ff88;">$0</b></div>', unsafe_allow_html=True)
-c3.markdown('<div class="card">LOSS<br><b style="color:#ff3366;">$0</b></div>', unsafe_allow_html=True)
+    df = (
+        pd.DataFrame(results)
+        .sort_values(by=["_grade_rank", "_score_num"], ascending=[True, False])
+        .reset_index(drop=True)
+    )
 
-# Sidebar
-with st.sidebar:
-    if st.button("بدء المسح الذكي"):
-        
-        pairs = ["EURUSD", "GBPUSD", "BTCUSD"]
+    st.session_state.radar_df = df
+    st.session_state.radar_ts = datetime.now(timezone.utc)
 
-        results = []
-
-        def scan_one(pair):
-            return E.scan(pair)  # لازم تكون موجودة في engine
-
-        with ThreadPoolExecutor(max_workers=4) as executor:
-            futures = {executor.submit(scan_one, p): p for p in pairs}
-
-            for fut in as_completed(futures):
-                pair = futures[fut]
-                try:
-                    res = fut.result(timeout=10)
-                    results.append(res)
-                except TimeoutError:
-                    results.append({"pair": pair, "signal": "TIMEOUT"})
-
-        df = pd.DataFrame(results)
-        st.session_state.radar_df = df
-
-# عرض النتائج
-st.subheader("📊 Radar")
-
-if st.session_state.radar_df is not None:
-    st.dataframe(st.session_state.radar_df, use_container_width=True)
-else:
-    st.info("ابدأ المسح من اليسار")
+    st.success(f"تم الانتهاء من المسح: {len(df)} سهم")
